@@ -38,8 +38,19 @@
     "cli",
     "claude"
   ],
-  "author": "",
+  "author": "joebrashear100 <joebrashear100@gmail.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joebrashear100/claude-notify.git"
+  },
+  "homepage": "https://github.com/joebrashear100/claude-notify#readme",
+  "bugs": {
+    "url": "https://github.com/joebrashear100/claude-notify/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "@types/node": "^20.12.0",
     "typescript": "^5.4.0",
