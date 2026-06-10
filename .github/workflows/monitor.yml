@@ -1,0 +1,82 @@
+name: SNDK monitor
+
+# Scheduled signal monitor. Pushes tiered ntfy alerts for price moves, SEC
+# filings, news, and macro releases. State persists on the `monitor-state`
+# branch between runs.
+#
+# Required repository secret:
+#   NTFY_TOPIC   - your ntfy topic (subscribe to it in the ntfy app)
+# Optional secrets:
+#   NTFY_SERVER  - self-hosted ntfy base URL (default https://ntfy.sh)
+#   NTFY_TOKEN   - bearer token for a protected topic
+#   FRED_API_KEY - enables the macro (CPI/jobs/Fed) source
+#
+# NOTE: scheduled runs only fire once this workflow is on the default branch.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: sndk-monitor
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm run build:monitor
+
+      - name: Restore state
+        run: |
+          git fetch origin monitor-state --depth=1 || true
+          if git show origin/monitor-state:state.json > monitor/state.json 2>/dev/null; then
+            echo "Restored existing state."
+          else
+            echo '{}' > monitor/state.json
+            echo "No prior state; starting fresh."
+          fi
+
+      - name: Run monitor
+        env:
+          CLAUDE_NOTIFY_NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          CLAUDE_NOTIFY_NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
+          CLAUDE_NOTIFY_NTFY_TOKEN: ${{ secrets.NTFY_TOKEN }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          STATE_FILE: monitor/state.json
+          CONTACT_EMAIL: ${{ secrets.CONTACT_EMAIL }}
+        run: npm run monitor
+
+      - name: Save state
+        run: |
+          cp monitor/state.json "$RUNNER_TEMP/state.json"
+          git config user.name "sndk-monitor"
+          git config user.email "actions@users.noreply.github.com"
+          git fetch origin monitor-state --depth=1 || true
+          if git rev-parse --verify origin/monitor-state >/dev/null 2>&1; then
+            git checkout -B monitor-state origin/monitor-state
+          else
+            git checkout --orphan monitor-state
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+          cp "$RUNNER_TEMP/state.json" state.json
+          git add state.json
+          if git diff --cached --quiet; then
+            echo "No state changes to commit."
+          else
+            git commit -m "Update monitor state [skip ci]"
+            git push origin monitor-state
+          fi
