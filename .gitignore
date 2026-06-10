@@ -1,5 +1,7 @@
 node_modules/
 dist/
+monitor/dist/
+monitor/state.json
 coverage/
 *.log
 .DS_Store

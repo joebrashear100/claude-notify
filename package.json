@@ -21,6 +21,8 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:monitor": "tsc -p monitor/tsconfig.json",
+    "monitor": "node monitor/dist/run.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
