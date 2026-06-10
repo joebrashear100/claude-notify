@@ -53,4 +53,20 @@ describe("parseArgs", () => {
     expect(parseArgs(["--help"]).help).toBe(true);
     expect(parseArgs(["-q", "hi"]).quiet).toBe(true);
   });
+
+  it("parses ntfy topic and server", () => {
+    const args = parseArgs([
+      "-n",
+      "sndk-alerts",
+      "--ntfy-server",
+      "https://ntfy.example.com",
+      "hi",
+    ]);
+    expect(args.ntfyTopic).toBe("sndk-alerts");
+    expect(args.ntfyServer).toBe("https://ntfy.example.com");
+  });
+
+  it("defaults the ntfy server to ntfy.sh", () => {
+    expect(parseArgs(["hi"]).ntfyServer).toBe("https://ntfy.sh");
+  });
 });

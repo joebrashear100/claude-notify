@@ -1,8 +1,9 @@
 # claude-notify
 
 A small, dependency-free notification library and CLI for Node.js. Dispatch a
-notification to one or more **channels** (console, webhook, Slack, Discord, or
-your own) with per-channel level filtering and fault isolation.
+notification to one or more **channels** (console, webhook, Slack, Discord,
+[ntfy](https://ntfy.sh) push, or your own) with per-channel level filtering and
+fault isolation.
 
 - **Zero runtime dependencies** — uses the Node 18+ global `fetch`.
 - **Pluggable channels** — implement a one-method interface to add your own.
@@ -22,7 +23,12 @@ npm install claude-notify
 ## Library usage
 
 ```ts
-import { createNotifier, ConsoleChannel, WebhookChannel } from "claude-notify";
+import {
+  createNotifier,
+  ConsoleChannel,
+  WebhookChannel,
+  NtfyChannel,
+} from "claude-notify";
 
 const notifier = createNotifier({
   defaultMeta: { app: "my-service" },
@@ -33,6 +39,12 @@ const notifier = createNotifier({
       url: process.env.SLACK_WEBHOOK_URL!,
       format: "slack",
       minLevel: "warning", // only warnings and errors hit Slack
+    }),
+  )
+  .use(
+    new NtfyChannel({
+      topic: "sndk-alerts",
+      minLevel: "warning", // push warnings/errors to your phone
     }),
   );
 
@@ -94,11 +106,19 @@ claude-notify -w "$SLACK_URL" -f slack -l warning "Deploy needs attention"
 | `--level <level>` | `-l` | `debug` \| `info` \| `warning` \| `error` (default `info`) |
 | `--webhook <url>` | `-w` | POST to this webhook URL |
 | `--format <fmt>` | `-f` | `generic` \| `slack` \| `discord` (default `generic`) |
-| `--quiet` | `-q` | Suppress the console channel (webhook only) |
+| `--ntfy <topic>` | `-n` | Publish to this ntfy topic |
+| `--ntfy-server <url>` | | ntfy server base URL (default `https://ntfy.sh`) |
+| `--quiet` | `-q` | Suppress the console channel (other channels only) |
 | `--help` | `-h` | Show help |
 
-Environment variables `CLAUDE_NOTIFY_WEBHOOK` and `CLAUDE_NOTIFY_FORMAT` supply
-defaults for `--webhook` and `--format`.
+Environment variables supply defaults: `CLAUDE_NOTIFY_WEBHOOK`,
+`CLAUDE_NOTIFY_FORMAT`, `CLAUDE_NOTIFY_NTFY_TOPIC`, `CLAUDE_NOTIFY_NTFY_SERVER`,
+and `CLAUDE_NOTIFY_NTFY_TOKEN` (bearer token for protected topics).
+
+```bash
+# Push a phone alert via ntfy (subscribe to the topic in the ntfy app first)
+claude-notify -n sndk-alerts -l warning "TrendForce NAND contract index dropped 4%"
+```
 
 The CLI exits `0` when all deliveries succeed, `1` if any channel failed, and
 `2` on a usage error.

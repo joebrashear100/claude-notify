@@ -2,6 +2,7 @@
 import { isLevel } from "./levels.js";
 import { Notifier } from "./notifier.js";
 import { ConsoleChannel } from "./channels/console.js";
+import { NtfyChannel } from "./channels/ntfy.js";
 import { WebhookChannel, type WebhookFormat } from "./channels/webhook.js";
 import type { NotificationLevel } from "./types.js";
 
@@ -11,6 +12,9 @@ interface ParsedArgs {
   level: NotificationLevel;
   webhook?: string;
   format: WebhookFormat;
+  ntfyTopic?: string;
+  ntfyServer: string;
+  ntfyToken?: string;
   quiet: boolean;
   help: boolean;
 }
@@ -26,17 +30,23 @@ Options:
   -l, --level <level>     debug | info | warning | error   (default: info)
   -w, --webhook <url>     POST the notification to this webhook URL
   -f, --format <format>   generic | slack | discord        (default: generic)
-  -q, --quiet             Suppress the console channel (webhook only)
+  -n, --ntfy <topic>      Publish to this ntfy topic
+      --ntfy-server <url> ntfy server base URL              (default: https://ntfy.sh)
+  -q, --quiet             Suppress the console channel (other channels only)
   -h, --help              Show this help
 
 Environment:
-  CLAUDE_NOTIFY_WEBHOOK   Default webhook URL if --webhook is omitted
-  CLAUDE_NOTIFY_FORMAT    Default webhook format
+  CLAUDE_NOTIFY_WEBHOOK       Default webhook URL if --webhook is omitted
+  CLAUDE_NOTIFY_FORMAT        Default webhook format
+  CLAUDE_NOTIFY_NTFY_TOPIC    Default ntfy topic if --ntfy is omitted
+  CLAUDE_NOTIFY_NTFY_SERVER   Default ntfy server base URL
+  CLAUDE_NOTIFY_NTFY_TOKEN    Bearer token for protected ntfy topics
 
 Examples:
   claude-notify "Build finished"
   claude-notify -l error -m "Tests failed" "CI"
   claude-notify -w "$SLACK_URL" -f slack -l warning "Deploy needs attention"
+  claude-notify -n sndk-alerts -l warning "TrendForce NAND contract index dropped"
 `;
 
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -44,6 +54,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
     level: "info",
     format: (process.env.CLAUDE_NOTIFY_FORMAT as WebhookFormat) ?? "generic",
     webhook: process.env.CLAUDE_NOTIFY_WEBHOOK,
+    ntfyTopic: process.env.CLAUDE_NOTIFY_NTFY_TOPIC,
+    ntfyServer: process.env.CLAUDE_NOTIFY_NTFY_SERVER ?? "https://ntfy.sh",
+    ntfyToken: process.env.CLAUDE_NOTIFY_NTFY_TOKEN,
     quiet: false,
     help: false,
   };
@@ -90,6 +103,15 @@ export function parseArgs(argv: string[]): ParsedArgs {
       case "-w":
       case "--webhook":
         args.webhook = next(i, arg);
+        i++;
+        break;
+      case "-n":
+      case "--ntfy":
+        args.ntfyTopic = next(i, arg);
+        i++;
+        break;
+      case "--ntfy-server":
+        args.ntfyServer = next(i, arg);
         i++;
         break;
       case "-f":
@@ -144,10 +166,19 @@ export async function run(argv: string[]): Promise<number> {
   if (args.webhook) {
     notifier.use(new WebhookChannel({ url: args.webhook, format: args.format }));
   }
+  if (args.ntfyTopic) {
+    notifier.use(
+      new NtfyChannel({
+        topic: args.ntfyTopic,
+        server: args.ntfyServer,
+        token: args.ntfyToken,
+      }),
+    );
+  }
 
   if (notifier.channelNames.length === 0) {
     process.stderr.write(
-      "Error: nothing to do - console is quiet and no webhook configured\n",
+      "Error: nothing to do - console is quiet and no webhook or ntfy topic configured\n",
     );
     return 2;
   }
